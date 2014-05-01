@@ -2,11 +2,13 @@ import _pickle as pickle
 from HuffmanNode import *
 from struct import *
 
+
 # reads the file and builds a dictionary of data and its frequency
-def build_map(file_name, file_format):
-    if file_format == 'FASTQ':
+def build_map(file_name):
+    if file_name.endswith('.fastq'):
         huffman_map = build_map_fastq(file_name)
     return huffman_map
+
 
 # builds a map for FASTQ files
 def build_map_fastq(file_name):
@@ -16,7 +18,6 @@ def build_map_fastq(file_name):
     while read:
         # sequence identifier
         line_1 = file.readline()
-        print(line_1)
         # checks for an empty file or for the end of a file
         if not line_1:
             read = False
@@ -24,13 +25,11 @@ def build_map_fastq(file_name):
             print('The sequence identifier line does not match the FASTQ format')
         else:
             # raw sequence
-            line_2 = file.readline()
-            print(len(line_2))
+            line_2 = file.readline().rstrip('\n')
             # line 3 is relatively unimportant given it is a comment (for now)
             file.readline()
             # quality scores
-            line_4 = file.readline()
-            print(len(line_4))
+            line_4 = file.readline().rstrip('\n')
             # more of an length error check
             if len(line_2) == len(line_4):
                 # count the indices in the line (NOTE: does NOT count '\n')
