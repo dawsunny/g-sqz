@@ -3,25 +3,24 @@
 
 class HuffmanNode:
     # class constructor
-    def __init__(self, left, right, data, freq):
-        # These values are created
-        # when the class is instantiated.
-        if (data is None and freq is None):
-            self.data = "" + left.data + right.data
-            self.freq = 0
-            self.left = left
-            self.right = right
-            self.is_leaf = False
-        elif (left is None and right is None):
-            self.data = data
-            self.freq = freq
+    # better to have a list of data than a concatenated string in case on DNA represented numerically
+    def __init__(self, left, right, data):
+        # leaf node
+        if (left is None):
             self.left = None
             self.right = None
-            self.is_leaf = True
+            self.data = [data]
+        # parent node
+        else:
+            self.left = left
+            self.right = right
+            self.data = []
+            self.data.extend(self.left.data)
+            self.data.extend(self.right.data)
 
     # basic getters
     def is_leaf(self):
-        return self.is_leaf
+        return (self.left == None and self.right == None)
 
     def get_left(self):
         return self.left

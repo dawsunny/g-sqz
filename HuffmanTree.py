@@ -1,3 +1,6 @@
+# g-sqz
+# The Huffman tree builder class
+
 import _pickle as pickle
 from HuffmanNode import *
 from struct import *
@@ -8,7 +11,6 @@ def build_map(file_name):
     if file_name.endswith('.fastq'):
         huffman_map = build_map_fastq(file_name)
     return huffman_map
-
 
 # builds a map for FASTQ files
 def build_map_fastq(file_name):
@@ -22,7 +24,7 @@ def build_map_fastq(file_name):
         if not line_1:
             read = False
         elif line_1[0] != '@':
-            print('The sequence identifier line does not match the FASTQ format')
+            raise FileFormatIncorrectException('The sequence identifier line does not match the FASTQ format')
         else:
             # raw sequence
             line_2 = file.readline().rstrip('\n')
@@ -33,7 +35,7 @@ def build_map_fastq(file_name):
             # more of an length error check
             if len(line_2) == len(line_4):
                 # count the indices in the line (NOTE: does NOT count '\n')
-                for i in range(0, len(line_2)-1):
+                for i in range(0, len(line_2)):
                     # store the key as sequence-score
                     key = "" + line_2[i] + line_4[i]
                     if key in huffman_map:
@@ -41,39 +43,44 @@ def build_map_fastq(file_name):
                     else:
                         huffman_map[key] = 1
             else:
-                print('The length of the raw sequence does not match the length of the quality score')
+                raise FileFormatIncorrectException('The length of the raw sequence does not match the length of the quality score')
         file.flush()
     file.close()
     # sorts and returns acc to ascending order of values
-    return sorted(huffman_map.items(), key=lambda k: k[1])
+    return sorted(huffman_map.items(), key=lambda key: key[1], reverse=True)
 
+# converts the sorted list to Huffman nodes
+def generate_huffman_nodes(sorted_list):
+    huffman_node_list = []
+    for i in sorted_list:
+        node = HuffmanNode(None, None, i[0])
+        huffman_node_list.append((i[1], node))
+    return huffman_node_list
 
-# builds the Huffman Tree
-def buildHuffNode(filename):
-    # build the file
-    huffman_map = buildMap(filename)
-    # create node map
-    nMap = []
-    # create a list of HuffMan Tree from file
-    for i in range(0, len(huffman_map)):
-        val = huffman_map[i]
-        node = HuffNode(None, None, val[0], val[1])
-        # add to nMap
-        nMap.append([val[1], node])
-    while True:
-        if len(nMap) == 1:
-            break
+# builds the Huffman tree
+def build_huffman_tree(huffman_node_list):
+    while (len(huffman_node_list) > 1):
+        right_node_tuple = huffman_node_list.pop()
+        left_node_tuple = huffman_node_list.pop()
+        parent_node = HuffmanNode(left_node_tuple[1], right_node_tuple[1], None)
+        insert_node(huffman_node_list, (left_node_tuple[0]+right_node_tuple[0], parent_node))
+    return huffman_node_list[0][1]
+
+# inserts the node at the appropriate position
+# more effective than sort and checking through all elements (in most cases)
+def insert_node(huffman_node_list, node_tuple):
+    data = node_tuple[0]
+    pointer = len(huffman_node_list)-1
+    while (pointer >= 0):
+        if data <= huffman_node_list[pointer][0]:
+            huffman_node_list.insert(pointer+1, node_tuple)
+            return True
         else:
-            l = nMap.pop(0)
-            r = nMap.pop(0)
-            par = HuffNode(l[1], r[1], None, None)
-            nMap.append([par.getFreq(), par])
-            # sorts the map with new values
-            nMap.sort()
-    t = nMap.pop(0)
-    tree = t[1]
-    return tree, huffman_map
+            pointer-=1
+    huffman_node_list.insert(0, node_tuple)
+    return True     
 
+# TODO everything below this -----
 
 # builds a Huffman Tree dict for easy access of locations
 def buildHuffList(filename):
