@@ -9,14 +9,12 @@ class HuffmanNode:
         if (left is None):
             self.left = None
             self.right = None
-            self.data = [data]
+            self.data = data
         # parent node
         else:
             self.left = left
             self.right = right
-            self.data = []
-            self.data.extend(self.left.data)
-            self.data.extend(self.right.data)
+            self.data = None
 
     # basic getters
     def is_leaf(self):

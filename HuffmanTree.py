@@ -78,43 +78,38 @@ def insert_node(huffman_node_list, node_tuple):
         else:
             pointer-=1
     huffman_node_list.insert(0, node_tuple)
-    return True     
+    return True
 
-# TODO everything below this -----
+# generates a dict with <key, val> = <seq-score, huffman_code>
+# the dict will provide quick access times while encoding file
+def generate_huffman_code_map(huffman_node):
+    huffman_code_map = {}
+    generate_huffman_code(huffman_node, '', huffman_code_map)
+    return huffman_code_map
 
-# builds a Huffman Tree dict for easy access of locations
-def buildHuffList(filename):
-    tree, huffman_map = buildHuffNode(filename)
-    # sorts in descending order of freqeuncy - it is IMPORTANT
-    huffman_map.sort(key=lambda k: k[1])
-    # create lists of nucleotides
-    temp = ['G', 'C', 'A', 'T', 'N']
-    # builds master list
-    hList = [[], [], [], [], []]
-    # adds to master list
-    # this will append() larger freqs first - optimal access time values!!!
-    for i in range(0, len(huffman_map)):
-        val = huffman_map[i][0]
-        code = findHuffCode(val, tree)
-        index = temp.index(val[0])
-        hList[index].append([val[1], code])
-    return hList, tree
+# recursive function that finds the huffman code
+def generate_huffman_code(node, code, huffman_code_map):
+    # base case: leaf
+    if node.is_leaf():
+        huffman_code_map[node.data] = code
+    # otherwise: parent node
+    else:
+        generate_huffman_code(node.left, code+'0', huffman_code_map)
+        generate_huffman_code(node.right, code+'1', huffman_code_map)
 
+# generates an exception for invalid file formats
+class FileFormatIncorrectException(Exception):
+    def __init__(self, error):
+        self.error = error
+        Exception.__init__(self, 'File Format Incorrect Exception: %s' % error)
 
-# finds the HuffMan (en)Code for the given value
-def findHuffCode(val, tree):
-    code = ""
-    while (tree.isLeaf() is False):
-        data = tree.getLeft().getData()
-        if (data.count(val) == 0):  # will give 0 or 1... better than using for loop! =)
-            tree = tree.getRight()
-            code += "1"
-        else:
-            tree = tree.getLeft()
-            code += "0"
-    #print val + " " + code
-    return code
+# autotest data
+a = build_map_fastq('basic.fastq')
+b = generate_huffman_nodes(a)
+c = build_huffman_tree(b)
+d = generate_huffman_code_map(c)
 
+# TODO everything below this <>
 
 def writeHuffFile(filename, newfile):
     hList, tree = buildHuffList(filename)
@@ -194,7 +189,3 @@ def getBinValue(n, v, h):
             # c. binary code
             # d. \n
 
-class FileFormatIncorrectException(Exception):
-    def __init__(self, error):
-        self.error = error
-        Exception.__init__(self, 'File Format Incorrect Exception: %s' % error)
