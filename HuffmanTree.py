@@ -1,9 +1,11 @@
 # g-sqz
 # The Huffman tree builder class
 
+
 import _pickle as pickle
-from HuffmanNode import *
+from heapq import *
 from struct import *
+from HuffmanNode import *
 
 
 # reads the file and builds a dictionary of data and its frequency
@@ -46,39 +48,21 @@ def build_map_fastq(file_name):
                 raise FileFormatIncorrectException('The length of the raw sequence does not match the length of the quality score')
         file.flush()
     file.close()
-    # sorts and returns acc to ascending order of values
-    return sorted(huffman_map.items(), key=lambda key: key[1], reverse=True)
+    return huffman_map
 
-# converts the sorted list to Huffman nodes
-def generate_huffman_nodes(sorted_list):
-    huffman_node_list = []
-    for i in sorted_list:
-        node = HuffmanNode(None, None, i[0])
-        huffman_node_list.append((i[1], node))
-    return huffman_node_list
-
-# builds the Huffman tree
-def build_huffman_tree(huffman_node_list):
-    while (len(huffman_node_list) > 1):
-        right_node_tuple = huffman_node_list.pop()
-        left_node_tuple = huffman_node_list.pop()
-        parent_node = HuffmanNode(left_node_tuple[1], right_node_tuple[1], None)
-        insert_node(huffman_node_list, (left_node_tuple[0]+right_node_tuple[0], parent_node))
-    return huffman_node_list[0][1]
-
-# inserts the node at the appropriate position
-# more effective than sort and checking through all elements (in most cases)
-def insert_node(huffman_node_list, node_tuple):
-    data = node_tuple[0]
-    pointer = len(huffman_node_list)-1
-    while (pointer >= 0):
-        if data <= huffman_node_list[pointer][0]:
-            huffman_node_list.insert(pointer+1, node_tuple)
-            return True
-        else:
-            pointer-=1
-    huffman_node_list.insert(0, node_tuple)
-    return True
+# converts the Huffman map to Huffman nodes
+# then builds the Huffman tree
+def build_huffman_tree(huffman_map):
+    huffman_node_heap = []
+    for i, j in huffman_map.items():
+        node = HuffmanNode(None, None, i, j)
+        heappush(huffman_node_heap, node)
+    while (len(huffman_node_heap) > 1):
+        left_node = heappop(huffman_node_heap)
+        right_node = heappop(huffman_node_heap)
+        parent_node = HuffmanNode(left_node, right_node, None, 0)
+        heappush(huffman_node_heap, parent_node)
+    return heappop(huffman_node_heap)
 
 # generates a dict with <key, val> = <seq-score, huffman_code>
 # the dict will provide quick access times while encoding file
@@ -104,10 +88,16 @@ class FileFormatIncorrectException(Exception):
         Exception.__init__(self, 'File Format Incorrect Exception: %s' % error)
 
 # autotest data
-a = build_map_fastq('basic.fastq')
-b = generate_huffman_nodes(a)
-c = build_huffman_tree(b)
-d = generate_huffman_code_map(c)
+
+# 78 elements
+a1 = build_map_fastq('test1.fastq')
+b1 = build_huffman_tree(a1)
+c1 = generate_huffman_code_map(b1)
+
+# 12159 elements
+a2 = build_map_fastq('test2.fastq')
+b2 = build_huffman_tree(a2)
+c2 = generate_huffman_code_map(b2)
 
 # TODO everything below this <>
 
