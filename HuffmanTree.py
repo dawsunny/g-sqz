@@ -39,14 +39,13 @@ def build_map_fastq(file_name):
                 # count the indices in the line (NOTE: does NOT count '\n')
                 for i in range(0, len(line_2)):
                     # store the key as sequence-score
-                    key = "" + line_2[i] + line_4[i]
+                    key = '' + line_2[i] + line_4[i]
                     if key in huffman_map:
                         huffman_map[key] += 1
                     else:
                         huffman_map[key] = 1
             else:
                 raise FileFormatIncorrectException('The length of the raw sequence does not match the length of the quality score')
-        file.flush()
     file.close()
     return huffman_map
 
@@ -81,6 +80,53 @@ def generate_huffman_code(node, code, huffman_code_map):
         generate_huffman_code(node.left, code+'0', huffman_code_map)
         generate_huffman_code(node.right, code+'1', huffman_code_map)
 
+# writes the g-sqz'd file
+def gsqz_encode_fastq_simple(file_name):
+    # prepare gsqz data
+    huffman_map = build_map(file_name)
+    huffman_node = build_huffman_tree(huffman_map)
+    huffman_encode_map = generate_huffman_code_map(huffman_node)
+    huffman_decode_map = {val:key for key, val in huffman_encode_map.items()}
+    # write data to file
+    read_file = open(file_name, 'r')
+    write_file = open(file_name+'.gsqz', 'wb')
+    # 1. dump pickled map
+    pickle.dump(huffman_decode_map, write_file)
+    read = True
+    while read:
+        line_1 = read_file.readline()
+        if not line_1:
+            read = False
+        elif line_1[0] != '@':
+            raise FileFormatIncorrectException('The sequence identifier line does not match the FASTQ format')
+        else:
+            line_2 = read_file.readline().rstrip('\n')
+            read_file.readline()
+            line_4 = read_file.readline().rstrip('\n')
+            if len(line_2) == len(line_4):
+                # generate raw encode string
+                raw_code = ''
+                for i in range(0, len(line_2)):
+                    seq_scr = '' + line_2[i] + line_4[i]
+                    raw_code += huffman_encode_map[seq_scr]
+                # add 0s to end
+                remainder = len(raw_code)%8
+                if remainder != 0:
+                    balance = 8 - remainder
+                    for i in range(balance):
+                        raw_code += '0'
+                print(raw_code)
+                # write corresponding bytes to file
+                byte_str = ''
+                for i in range(0, len(raw_code), 8):
+                    int_val = int(raw_code[i:i+8], 2)
+                    write_file.write(int_val.to_bytes(1, byteorder='big'))                                     
+            else:
+                raise FileFormatIncorrectException('The length of the raw sequence does not match the length of the quality score')
+        write_file.flush()
+    read_file.close()
+    write_file.close()
+
 # generates an exception for invalid file formats
 class FileFormatIncorrectException(Exception):
     def __init__(self, error):
@@ -90,92 +136,13 @@ class FileFormatIncorrectException(Exception):
 # autotest data
 
 # 78 elements
+gsqz_encode_fastq_simple('test1.fastq')
 a1 = build_map_fastq('test1.fastq')
 b1 = build_huffman_tree(a1)
 c1 = generate_huffman_code_map(b1)
 
 # 12159 elements
+#gsqz_encode_fastq_simple('test2.fastq')
 a2 = build_map_fastq('test2.fastq')
 b2 = build_huffman_tree(a2)
 c2 = generate_huffman_code_map(b2)
-
-# TODO everything below this <>
-
-def writeHuffFile(filename, newfile):
-    hList, tree = buildHuffList(filename)
-    # open both files
-    new = open(newfile, 'wb')
-    old = open(filename, 'r')
-    # dump object into new file
-    pickle.dump(tree, new)
-    nLine = pack('c', '\n')
-    new.write(nLine)
-    # write the remaining bits
-    while True:
-        o1 = old.readline()
-        if not o1:
-            break
-        else:
-            o2 = old.readline()
-            # line 3 is relatively unimportant
-            old.readline()
-            o4 = old.readline()
-            # omits "length = 0" lines ---> pointless!
-            if (len(o2) != 1 and len(o4) != 1):
-                # read the designated string value
-                stt = o1.find(" ") + 1
-                stp = o1.find(" ", stt)
-                # write the designated string value
-                desg = pack('s', o1[stt:stp])
-                new.write(desg)
-                # write the bits for Huffman
-                binCode = ""  # the bitstring
-                for i in range(0, len(o2) - 1):
-                    nuc = "" + o2[i]
-                    val = "" + o4[i]
-                    binCode += getBinValue(nuc, val, hList)
-                # get and write remainder to file
-                rmn = len(binCode) % 8
-                rem = chr(rmn)
-                new.write(rem)
-                # this is epic - makes life a lot easier if DONE HERE
-                for i in range(rmn, 8):
-                    binCode += "0"
-                # intialize x 
-                x = 0
-                # extracts fragments of 8bits
-                for i in range(0, len(binCode)):
-                    # extracts indices from fragments
-                    c = int(binCode[i])
-                    # convert to asci
-                    x = x << 1 or c
-                    # write bit
-                    if (i % 8 == 7):
-                        bit = chr(x)
-                        new.write(bit)
-                        x = 0
-                # write new line
-                new.write(nLine)
-    # close files
-    new.close()
-    old.close()
-    return True
-
-
-# gets the binary value from the
-def getBinValue(n, v, h):
-    temp = ['G', 'C', 'A', 'T', 'N']
-    subList = h[temp.index(n)]
-    for i in range(0, len(subList)):
-        if (subList[i][0] == v):
-            return subList[i][1]
-
-            # write format:
-            # 1. pickled object
-            # 2. \n
-            # 3. RECURSIVE:
-            # a. serial number
-            # b. binary remainder
-            # c. binary code
-            # d. \n
-
