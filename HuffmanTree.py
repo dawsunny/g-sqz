@@ -1,12 +1,9 @@
 # g-sqz
 # The Huffman tree builder class
 
-
-import _pickle as pickle
 from heapq import *
-from struct import *
+from _pickle import *
 from HuffmanNode import *
-
 
 # reads the file and builds a dictionary of data and its frequency
 def build_map(file_name):
@@ -37,7 +34,7 @@ def build_map_fastq(file_name):
             # more of an length error check
             if len(line_2) == len(line_4):
                 # count the indices in the line (NOTE: does NOT count '\n')
-                for i in range(0, len(line_2)):
+                for i in range(len(line_2)):
                     # store the key as sequence-score
                     key = '' + line_2[i] + line_4[i]
                     if key in huffman_map:
@@ -48,6 +45,7 @@ def build_map_fastq(file_name):
                 raise FileFormatIncorrectException('The length of the raw sequence does not match the length of the quality score')
     file.close()
     return huffman_map
+
 
 # converts the Huffman map to Huffman nodes
 # then builds the Huffman tree
@@ -63,12 +61,14 @@ def build_huffman_tree(huffman_map):
         heappush(huffman_node_heap, parent_node)
     return heappop(huffman_node_heap)
 
+
 # generates a dict with <key, val> = <seq-score, huffman_code>
 # the dict will provide quick access times while encoding file
 def generate_huffman_code_map(huffman_node):
     huffman_code_map = {}
     generate_huffman_code(huffman_node, '', huffman_code_map)
     return huffman_code_map
+
 
 # recursive function that finds the huffman code
 def generate_huffman_code(node, code, huffman_code_map):
@@ -80,53 +80,122 @@ def generate_huffman_code(node, code, huffman_code_map):
         generate_huffman_code(node.left, code+'0', huffman_code_map)
         generate_huffman_code(node.right, code+'1', huffman_code_map)
 
+
 # writes the g-sqz'd file
-def gsqz_encode_fastq_simple(file_name):
+def gsqz_encode_fastq_simple(file_name, line_len=26):
     # prepare gsqz data
     huffman_map = build_map(file_name)
     huffman_node = build_huffman_tree(huffman_map)
     huffman_encode_map = generate_huffman_code_map(huffman_node)
     huffman_decode_map = {val:key for key, val in huffman_encode_map.items()}
-    # write data to file
+    
+    # file io
     read_file = open(file_name, 'r')
-    write_file = open(file_name+'.gsqz', 'wb')
-    # 1. dump pickled map
-    pickle.dump(huffman_decode_map, write_file)
+    gsqz_name = file_name+'.gsqz'
+    write_file = open(gsqz_name, 'wb')
+    
+    # 1. dump map
+    pickled = dumps(huffman_decode_map)
+    print(len(pickled))
+    write_file.write(len(pickled).to_bytes(3, byteorder='big'))
+    write_file.write(pickled)
+    
+    # 2. write line length
+    write_file.write(line_len.to_bytes(1, byteorder='big'))
+    write_file.close()
+    
+    # 3. write lines
+    raw_code = ''
     read = True
     while read:
         line_1 = read_file.readline()
         if not line_1:
             read = False
-        elif line_1[0] != '@':
-            raise FileFormatIncorrectException('The sequence identifier line does not match the FASTQ format')
         else:
             line_2 = read_file.readline().rstrip('\n')
+            # TODO: develop compression of line 3 <low>
             read_file.readline()
-            line_4 = read_file.readline().rstrip('\n')
-            if len(line_2) == len(line_4):
-                # generate raw encode string
-                raw_code = ''
-                for i in range(0, len(line_2)):
-                    seq_scr = '' + line_2[i] + line_4[i]
-                    raw_code += huffman_encode_map[seq_scr]
-                # add 0s to end
-                remainder = len(raw_code)%8
-                if remainder != 0:
-                    balance = 8 - remainder
-                    for i in range(balance):
-                        raw_code += '0'
-                print(raw_code)
-                # write corresponding bytes to file
-                byte_str = ''
-                for i in range(0, len(raw_code), 8):
-                    int_val = int(raw_code[i:i+8], 2)
-                    write_file.write(int_val.to_bytes(1, byteorder='big'))                                     
-            else:
-                raise FileFormatIncorrectException('The length of the raw sequence does not match the length of the quality score')
-        write_file.flush()
+            line_4 = read_file.readline().rstrip('\n')            
+            for i in range(len(line_2)):
+                seq_scr = '' + line_2[i] + line_4[i]
+                raw_code += huffman_encode_map[seq_scr]
+            rem = -(len(raw_code)%8)
+            append_bytes(gsqz_name, raw_code[:rem])
+            raw_code = raw_code[-rem:]
+        read_file.flush()
+    rem = len(raw_code)%8
+    if rem > 0:
+        raw_code += '0'*(8-rem)        
+        append_bytes(gsqz_name, raw_code)
     read_file.close()
-    write_file.close()
+    print('Success')
+    return huffman_map, huffman_node, huffman_encode_map
 
+# useful after PoC
+def append_bytes(file_name, bin_str):    
+    byte_bin_map = byte_bin(False)
+    byte_str = b''
+    write_file = open(file_name, 'ab')
+    for i in range(0, len(bin_str), 8):
+        #print(bin_str[i:i+8])
+        byte_str += byte_bin_map[bin_str[i:i+8]]
+    write_file.write(byte_str)
+    write_file.close()    
+    
+# byte-binary map
+def byte_bin(bytetobin=True):
+    byte_bin_map = {}
+    if bytetobin:
+        for i in range(256):
+            bin_val = bin(i)[2:]
+            prefix_bin_val = 8-len(bin_val)
+            if (prefix_bin_val > 0):
+                bin_val = '0'* prefix_bin_val + bin_val
+            byte_val = i.to_bytes(1, byteorder='big')
+            byte_bin_map[byte_val] = bin_val
+    else:
+        for i in range(256):
+            bin_val = bin(i)[2:]
+            prefix_bin_val = 8-len(bin_val)
+            if (prefix_bin_val > 0):
+                bin_val = '0'* prefix_bin_val + bin_val
+            byte_val = i.to_bytes(1, byteorder='big')
+            byte_bin_map[bin_val] = byte_val
+    return byte_bin_map
+
+# TODO: complete function <high>
+# decodes gsqz file        
+def gsqz_decode_fastq_simple(file_name):    
+    byte_bin_map = byte_bin()
+    write_file = open(file_name+'.fastq', 'w')
+    read_file = open(file_name, 'rb')
+    pickled_raw_len = ''
+    for i in range(3):
+        pickled_raw_len += byte_bin_map[read_file.read(1)]
+    pickled_len = int(pickled_raw_len, 2)
+    print(pickled_len)        
+    pickled = loads(read_file.read(pickled_len))
+    print(pickled)
+    max_line_len = read_file.read(1)
+    curr_len = 0
+    char_str = ''
+    seq = ''
+    scr = ''
+    byte = read_file.read(1)
+    while byte:
+        char_str += byte_bin_map[byte]
+        byte = read_file.read(1)
+    found = False
+    while not found:
+        char_str_len = len(char_str)
+        for i in range(char_str_len):
+            for j in range(1, char_str_len-i):
+                key = char_str[i:i+j]
+                if key in byte_bin_map:
+                    seq_scr = byte_bin_map[key]
+                    seq += seq_scr[0]
+                    scr += seq_scr[1]
+    
 # generates an exception for invalid file formats
 class FileFormatIncorrectException(Exception):
     def __init__(self, error):
@@ -136,13 +205,8 @@ class FileFormatIncorrectException(Exception):
 # autotest data
 
 # 78 elements
-gsqz_encode_fastq_simple('test1.fastq')
-a1 = build_map_fastq('test1.fastq')
-b1 = build_huffman_tree(a1)
-c1 = generate_huffman_code_map(b1)
+a1, a2, a3 = gsqz_encode_fastq_simple('test1.fastq')
 
 # 12159 elements
 #gsqz_encode_fastq_simple('test2.fastq')
-a2 = build_map_fastq('test2.fastq')
-b2 = build_huffman_tree(a2)
-c2 = generate_huffman_code_map(b2)
+b1, b2, b3 = gsqz_encode_fastq_simple('test2.fastq')
