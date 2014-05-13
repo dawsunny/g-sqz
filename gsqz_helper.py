@@ -1,25 +1,32 @@
 # g-sqz
 # supplemental testing helper functions
 
-def count_nucleotides(file_name):
-    file = open(file_name, 'r')
+from HuffmanTree import *
+
+def theoretical_size(file_name):
+    print(file_name)
+    huffman_map, line_1_list, line_len = build_map(file_name)
+    huffman_node = build_huffman_tree(huffman_map)
+    huffman_encode_map = generate_huffman_code_map(huffman_node)
+    pickled_list = dumps(line_1_list)
+    print('Pickled List Size: ' + str(len(pickled_list))+'b')
+    pickled_map = dumps(huffman_encode_map)
+    print('Pickled Map Size: ' + str(len(pickled_map))+'b')
     count = 0
-    read = True
-    while read:
-        # sequence identifier
-        line_1 = file.readline().rstrip('\n')
-        if not line_1:
-            read = False
-        else:
-            start = line_1.index('=')+1
-            count += int(line_1[start:len(line_1)])
-            line_2 = file.readline()
-            line_3 = file.readline()
-            line_4 = file.readline()
-        file.flush()
-    file.close()
-    return count
+    for key in huffman_map:
+        count += huffman_map[key]*len(huffman_encode_map[key])
+    count = round(count/8)
+    print('Huffman Size: ' + str(count)+'b')
+    total = len(pickled_list) + len(pickled_map) + count + 7
+    if total > 1048576:
+        print('Total Size: ' + str(round(total/1048576))+'MB')
+    elif total > 1024:
+        print('Total Size: ' + str(round(total/1024))+'KB')
+    else:
+        print('Total Size: ' + str(total)+'B')
+    print()
+
 
 #test data
-print(count_nucleotides('test2.fastq'))
-
+theoretical_size('test1.fastq')
+theoretical_size('test2.fastq')

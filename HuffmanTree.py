@@ -14,25 +14,25 @@ def build_map(file_name):
 # builds a map for FASTQ files
 def build_map_fastq(file_name):
     huffman_map = {}
+    line_1_list = []
     file = open(file_name, 'r')
-    read = True
-    while read:
-        # sequence identifier
-        line_1 = file.readline()
-        # checks for an empty file or for the end of a file
-        if not line_1:
-            read = False
-        elif line_1[0] != '@':
+    line_1 = file.readline()
+    line_len = 0
+    while line_1:
+        if line_1[0] != '@':
             raise FileFormatIncorrectException('The sequence identifier line does not match the FASTQ format')
         else:
+            line_1_list.append(line_1)
             # raw sequence
             line_2 = file.readline().rstrip('\n')
-            # line 3 is relatively unimportant given it is a comment (for now)
+            # line 3 - TBD
             file.readline()
             # quality scores
             line_4 = file.readline().rstrip('\n')
             # more of an length error check
             if len(line_2) == len(line_4):
+                if line_len == 0:
+                    line_len = len(line_2)
                 # count the indices in the line (NOTE: does NOT count '\n')
                 for i in range(len(line_2)):
                     # store the key as sequence-score
@@ -43,8 +43,10 @@ def build_map_fastq(file_name):
                         huffman_map[key] = 1
             else:
                 raise FileFormatIncorrectException('The length of the raw sequence does not match the length of the quality score')
+            file.flush()
+            line_1 = file.readline()
     file.close()
-    return huffman_map
+    return huffman_map, line_1_list, line_len
 
 
 # converts the Huffman map to Huffman nodes
@@ -82,9 +84,9 @@ def generate_huffman_code(node, code, huffman_code_map):
 
 
 # writes the g-sqz'd file
-def gsqz_encode_fastq_simple(file_name, line_len=26):
+def gsqz_encode_fastq_simple(file_name):
     # prepare gsqz data
-    huffman_map = build_map(file_name)
+    huffman_map, line_1_list, line_len = build_map(file_name)
     huffman_node = build_huffman_tree(huffman_map)
     huffman_encode_map = generate_huffman_code_map(huffman_node)
     huffman_decode_map = {val:key for key, val in huffman_encode_map.items()}
@@ -94,44 +96,42 @@ def gsqz_encode_fastq_simple(file_name, line_len=26):
     gsqz_name = file_name+'.gsqz'
     write_file = open(gsqz_name, 'wb')
     
-    # 1. dump map
-    pickled = dumps(huffman_decode_map)
-    print(len(pickled))
-    write_file.write(len(pickled).to_bytes(3, byteorder='big'))
-    write_file.write(pickled)
-    
-    # 2. write line length
+    # 1. write line length
     write_file.write(line_len.to_bytes(1, byteorder='big'))
+    
+    # 2. dump objects and their lengths
+    pickled_list = dumps(line_1_list)
+    write_file.write(len(pickled_list).to_bytes(3, byteorder='big'))
+    pickled_map = dumps(huffman_decode_map)
+    write_file.write(len(pickled_map).to_bytes(3, byteorder='big'))
+    write_file.write(pickled_list)
+    write_file.write(pickled_map)
     write_file.close()
     
     # 3. write lines
     raw_code = ''
-    read = True
-    while read:
-        line_1 = read_file.readline()
-        if not line_1:
-            read = False
-        else:
-            line_2 = read_file.readline().rstrip('\n')
-            # TODO: develop compression of line 3 <low>
-            read_file.readline()
-            line_4 = read_file.readline().rstrip('\n')            
-            for i in range(len(line_2)):
-                seq_scr = '' + line_2[i] + line_4[i]
-                raw_code += huffman_encode_map[seq_scr]
-            rem = -(len(raw_code)%8)
-            append_bytes(gsqz_name, raw_code[:rem])
-            raw_code = raw_code[-rem:]
+    line_1 = read_file.readline()
+    while line_1:
+        line_2 = read_file.readline().rstrip('\n')
+        read_file.readline()
+        line_4 = read_file.readline().rstrip('\n')            
+        for i in range(len(line_2)):
+            seq_scr = '' + line_2[i] + line_4[i]
+            raw_code += huffman_encode_map[seq_scr]
+        rem = -(len(raw_code)%8)
+        append_bytes(gsqz_name, raw_code[:rem])
+        raw_code = raw_code[rem:]
         read_file.flush()
-    rem = len(raw_code)%8
-    if rem > 0:
-        raw_code += '0'*(8-rem)        
-        append_bytes(gsqz_name, raw_code)
+        line_1 = read_file.readline()
     read_file.close()
-    print('Success')
-    return huffman_map, huffman_node, huffman_encode_map
+    rem = 8-len(raw_code)
+    if rem > 0:
+        raw_code += '0'*rem
+        append_bytes(gsqz_name, raw_code)
+    print('Successfully encoded: ' + file_name)
+    return huffman_map, line_1_list, line_len, huffman_node, huffman_encode_map
 
-# useful after PoC
+# appends bytes to output file
 def append_bytes(file_name, bin_str):    
     byte_bin_map = byte_bin(False)
     byte_str = b''
@@ -169,13 +169,13 @@ def gsqz_decode_fastq_simple(file_name):
     byte_bin_map = byte_bin()
     write_file = open(file_name+'.fastq', 'w')
     read_file = open(file_name, 'rb')
-    pickled_raw_len = ''
+    pickled_map_raw_len = ''
     for i in range(3):
-        pickled_raw_len += byte_bin_map[read_file.read(1)]
-    pickled_len = int(pickled_raw_len, 2)
-    print(pickled_len)        
-    pickled = loads(read_file.read(pickled_len))
-    print(pickled)
+        pickled_map_raw_len += byte_bin_map[read_file.read(1)]
+    pickled_map_len = int(pickled_map_raw_len, 2)
+    print(pickled_map_len)        
+    pickled_map = loads(read_file.read(pickled_map_len))
+    print(pickled_map)
     max_line_len = read_file.read(1)
     curr_len = 0
     char_str = ''
@@ -203,10 +203,9 @@ class FileFormatIncorrectException(Exception):
         Exception.__init__(self, 'File Format Incorrect Exception: %s' % error)
 
 # autotest data
+if __name__ == '__main__':
+    # 78 elements
+    a1, a2, a3, a4, a5 = gsqz_encode_fastq_simple('test1.fastq')
 
-# 78 elements
-a1, a2, a3 = gsqz_encode_fastq_simple('test1.fastq')
-
-# 12159 elements
-#gsqz_encode_fastq_simple('test2.fastq')
-b1, b2, b3 = gsqz_encode_fastq_simple('test2.fastq')
+    # 12159 elements
+    b1, b2, b3, b4, b5 = gsqz_encode_fastq_simple('test2.fastq')
