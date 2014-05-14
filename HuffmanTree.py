@@ -83,7 +83,7 @@ def generate_huffman_code(node, code, huffman_code_map):
 
 
 # writes the g-sqz'd file
-def gsqz_encode_fastq_simple(file_name, encode='basic'):
+def gsqz_encode_fastq(file_name, encode='basic'):
     # preparation
     huffman_map, line_len = build_map(file_name)
     huffman_node = build_huffman_tree(huffman_map)
@@ -133,14 +133,17 @@ def gsqz_encode_fastq_simple(file_name, encode='basic'):
         rem = raw_code_len % 8
         bit_index = rem
         byte_index += raw_code_len // 8
-        append_bytes(temp_name, raw_code[:-rem])
-        raw_code = raw_code[-rem:]
+        if rem == 0:
+            append_bytes(temp_name, raw_code)
+            raw_code = ''
+        else:
+            append_bytes(temp_name, raw_code[:-rem])
+            raw_code = raw_code[-rem:]
         read_file.flush()
         line_1 = read_file.readline()
     read_file.close()
-    rem = 8-raw_code_len
-    if rem > 0:
-        raw_code += '0'*rem
+    if len(raw_code) > 0:
+        raw_code += '0'*(8-len(raw_code))
         append_bytes(temp_name, raw_code)
 
     # dump seek map
@@ -203,13 +206,13 @@ def byte_bin(bytetobin=True):
 
 
 # decodes gsqz file        
-def gsqz_decode_fastq_simple(gsqz_file, decode='basic'):
+def gsqz_decode_fastq(gsqz_file, decode='basic'):
     # preparation
     byte_bin_map = byte_bin()
     read_file = open(gsqz_file, 'rb')    
     write_file = gsqz_file + '.fastq'
     
-    # delete old file if it exists
+    # delete old file if it exists since decode appends in chunks
     try:
         os.remove(write_file)
     except OSError:
@@ -221,21 +224,19 @@ def gsqz_decode_fastq_simple(gsqz_file, decode='basic'):
     huffman_decode_map = loads(read_file.read(pickled_map_len))
     pickled_seek_len = int.from_bytes(read_file.read(3), byteorder='big')
     seek = loads(read_file.read(pickled_seek_len))
+    a = huffman_decode_map
 
     # read and convert entire file to a huffman code string
     char_str = ''
-    c = 1
     byte = read_file.read(1)
     while byte:
         char_str += byte_bin_map[byte]
         byte = read_file.read(1)
-        c += 1
     read_file.close()
-    print(c, char_str, len(char_str))
 
     # decode huffman code string
     if decode == 'basic':
-        min_huffman = len(min(huffman_decode_map.keys()))        
+        min_huffman = len(min(huffman_decode_map.keys(), key=len))
         stt_pos = 0
         end_pos = min_huffman
         for i in seek:
@@ -251,17 +252,15 @@ def gsqz_decode_fastq_simple(gsqz_file, decode='basic'):
                     curr_len += 1
                     stt_pos = end_pos
                     end_pos = stt_pos + min_huffman
-                    print(curr_len, seq_scr, stt_pos, end_pos)
                 else:
                     end_pos += 1
-                    #print(end_pos)
                     
             # append
             append_block(write_file, i, seq, scr)
-            #print(i, curr_len, seq, scr)
 
     # confirmation
     print('Successfully decoded: ' + gsqz_file)
+    return line_len, pickled_map_len, huffman_decode_map, pickled_seek_len, seek
         
 # appends block to output file
 def append_block(file_name, line_1, line_2, line_4):
@@ -282,11 +281,11 @@ class FileFormatIncorrectException(Exception):
 # autotest data
 if __name__ == '__main__':
     # 78 elements
-    a1, a2, a3, a4 = gsqz_encode_fastq_simple('./test/test0.0.fastq')
+    a1, a2, a3, a4 = gsqz_encode_fastq('./test/test0.0.fastq')
 
     # 12159 elements
-    b1, b2, b3, b4 = gsqz_encode_fastq_simple('./test/test0.1.fastq')
+    b1, b2, b3, b4 = gsqz_encode_fastq('./test/test0.1.fastq')
 
     #decode
-    gsqz_decode_fastq_simple('./test/test0.0.fastq.gsqz')
-    #gsqz_decode_fastq_simple('./test/test0.1.fastq.gsqz')
+    c1, c2, c3, c4, c5 = gsqz_decode_fastq('./test/test0.0.fastq.gsqz')
+    d1, d2, d3, d4, d5 = gsqz_decode_fastq('./test/test0.1.fastq.gsqz')
