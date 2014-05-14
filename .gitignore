@@ -1,4 +1,4 @@
 *.pyc
 *.gsqz
-*.fastq
+*.gsqz.fastq
 *.zip
