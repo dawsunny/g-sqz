@@ -1,5 +1,7 @@
 SRR007215_1.fastq = test1.x.fastq
 SRR013951_2.filt.fastq = test2.x.fastq
+SRR010637.filt.fastq = test3.x.fastq
+SRR027520_1.filt.fastq = test4.x.fastq
 
 x:
 0 - 100KB

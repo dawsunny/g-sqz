@@ -158,6 +158,7 @@ def gsqz_encode_fastq(file_name, encode='basic'):
     pickled_seek = dumps(seek)
     write_file.write(len(pickled_seek).to_bytes(3, byteorder='big'))
     write_file.write(pickled_seek)
+    print('Seek size: {:.2f}KB'.format(len(pickled_seek)/1024))
     
     # append temp file bytes, delete temp file
     temp_file = open(temp_name, 'rb')
