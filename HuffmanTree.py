@@ -83,18 +83,13 @@ def generate_huffman_code(node, code, huffman_code_map):
 
 
 # writes the g-sqz'd file
-def gsqz_encode_fastq(file_name, encode='basic'):
+def gsqz_encode_fastq(file_name):
     # preparation
     huffman_map, line_len = build_map(file_name)
     huffman_node = build_huffman_tree(huffman_map)
     huffman_encode_map = generate_huffman_code_map(huffman_node)
     huffman_decode_map = {val:key for key, val in huffman_encode_map.items()}
-    if encode == 'basic':
-        seek_v1 = []
-    elif encode == 'mapped':
-        seek_map = {}
-    else:        
-        seek_v2 = []   
+    seek_map = {}
     
     # file io
     read_file = open(file_name, 'r')
@@ -117,12 +112,7 @@ def gsqz_encode_fastq(file_name, encode='basic'):
     bit_index = 0
     line_1 = read_file.readline()
     while line_1:
-        if encode == 'basic':
-            seek_v1.append(line_1.strip('@\n'))
-        elif encode == 'mapped':
-            seek_map[line_1.strip('@\n')] = (byte_index, bit_index)
-        else:        
-            seek_v2.append((byte_index, bit_index))
+        seek_map[line_1.strip('@\n')] = (byte_index, bit_index)
         line_2 = read_file.readline().rstrip('\n')
         read_file.readline()
         line_4 = read_file.readline().rstrip('\n')            
@@ -148,14 +138,7 @@ def gsqz_encode_fastq(file_name, encode='basic'):
 
     # dump seek map
     write_file = open(gsqz_name, 'ab')
-    seek = None
-    if encode == 'basic':
-        seek = seek_v1
-    elif encode == 'mapped':
-        seek = seek_map
-    else:        
-        seek = seek_v2
-    pickled_seek = dumps(seek)
+    pickled_seek = dumps(seek_map)
     write_file.write(len(pickled_seek).to_bytes(3, byteorder='big'))
     write_file.write(pickled_seek)
     print('Seek size: {:.2f}KB'.format(len(pickled_seek)/1024))
@@ -207,7 +190,7 @@ def byte_bin(bytetobin=True):
 
 
 # decodes gsqz file        
-def gsqz_decode_fastq(gsqz_file, decode='basic'):
+def gsqz_decode_fastq(gsqz_file, decode='full'):
     # preparation
     byte_bin_map = byte_bin()
     read_file = open(gsqz_file, 'rb')    
@@ -236,8 +219,9 @@ def gsqz_decode_fastq(gsqz_file, decode='basic'):
     read_file.close()
 
     # decode huffman code string
-    if decode == 'basic':
+    if decode == 'full':
         min_huffman = len(min(huffman_decode_map.keys(), key=len))
+        seek = sorted(seek.keys(), key=seek.get)
         stt_pos = 0
         end_pos = min_huffman
         for i in seek:
@@ -287,6 +271,6 @@ if __name__ == '__main__':
     # 12159 elements
     b1, b2, b3, b4 = gsqz_encode_fastq('./test/test0.1.fastq')
 
-    #decode
+    # decode
     c1, c2, c3, c4, c5 = gsqz_decode_fastq('./test/test0.0.fastq.gsqz')
     d1, d2, d3, d4, d5 = gsqz_decode_fastq('./test/test0.1.fastq.gsqz')
