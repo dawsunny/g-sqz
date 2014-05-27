@@ -154,7 +154,7 @@ def gsqz_encode_fastq(file_name):
     
     # confirmation and output
     print('Successfully encoded: ' + file_name)
-    return huffman_map, huffman_node, huffman_encode_map, line_len
+    return huffman_map, huffman_node, huffman_encode_map, line_len, seek_map
 
 # appends bytes to output file
 def append_bytes(file_name, bin_str):    
@@ -190,7 +190,7 @@ def byte_bin(bytetobin=True):
 
 
 # decodes gsqz file        
-def gsqz_decode_fastq(gsqz_file, decode='full'):
+def gsqz_decode_fastq(gsqz_file, decode='full', start=None, end=None):
     # preparation
     byte_bin_map = byte_bin()
     read_file = open(gsqz_file, 'rb')    
@@ -208,10 +208,33 @@ def gsqz_decode_fastq(gsqz_file, decode='full'):
     huffman_decode_map = loads(read_file.read(pickled_map_len))
     pickled_seek_len = int.from_bytes(read_file.read(3), byteorder='big')
     seek = loads(read_file.read(pickled_seek_len))
-    a = huffman_decode_map
+
+    # prepare seek map
+    min_huffman = len(min(huffman_decode_map.keys(), key=len))
+    
+    stt_val = None
+    end_val = None
+    if decode == 'full':
+        stt_val = (0, 0)
+        end_val = (float('inf'), 0)          
+    elif start in seek and end in seek:
+        stt_val = seek[start]
+        end_val = seek[end]
+    else:
+        raise KeyError()
+
+    seq_heap = []
+    for key,val in seek.items():
+        if stt_val <= val:
+            heappush(seq_heap, (val[0], key))
 
     # read and convert entire file to a huffman code string
     char_str = ''
+    if stt_val != (0, 0):
+        read_file.seek(stt_val[0]-1, 1)
+        byte = read_file.read(1)
+        char_str += byte_bin_map[byte][stt_val[1]:]        
+    
     byte = read_file.read(1)
     while byte:
         char_str += byte_bin_map[byte]
@@ -219,12 +242,10 @@ def gsqz_decode_fastq(gsqz_file, decode='full'):
     read_file.close()
 
     # decode huffman code string
-    if decode == 'full':
-        min_huffman = len(min(huffman_decode_map.keys(), key=len))
-        seek = sorted(seek.keys(), key=seek.get)
+    if decode == 'full':        
         stt_pos = 0
         end_pos = min_huffman
-        for i in seek:
+        while len(seq_heap) > 0:
             curr_len = 0
             seq = ''
             scr = ''
@@ -241,7 +262,7 @@ def gsqz_decode_fastq(gsqz_file, decode='full'):
                     end_pos += 1
                     
             # append
-            append_block(write_file, i, seq, scr)
+            append_block(write_file, heappop(seq_heap)[1], seq, scr)
 
     # confirmation
     print('Successfully decoded: ' + gsqz_file)
@@ -264,13 +285,16 @@ class FileFormatIncorrectException(Exception):
         Exception.__init__(self, 'File Format Incorrect Exception: %s' % error)
 
 # autotest data
-if __name__ == '__main__':
+def main():
     # 78 elements
-    a1, a2, a3, a4 = gsqz_encode_fastq('./test/test0.0.fastq')
+    a1, a2, a3, a4, a5 = gsqz_encode_fastq('./test/test0.0.fastq')
 
     # 12159 elements
-    b1, b2, b3, b4 = gsqz_encode_fastq('./test/test0.1.fastq')
+    b1, b2, b3, b4, b5 = gsqz_encode_fastq('./test/test0.1.fastq')
 
     # decode
     c1, c2, c3, c4, c5 = gsqz_decode_fastq('./test/test0.0.fastq.gsqz')
     d1, d2, d3, d4, d5 = gsqz_decode_fastq('./test/test0.1.fastq.gsqz')
+
+if __name__ == '__main__':
+    main()
