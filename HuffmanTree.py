@@ -1,10 +1,12 @@
 # g-sqz
 # The Huffman tree builder class
 
+from collections import deque
 from heapq import *
 from _pickle import *
 from HuffmanNode import *
 import os
+import re
 
 # reads the file and builds a dictionary of data and its frequency
 def build_map(file_name):
@@ -15,37 +17,72 @@ def build_map(file_name):
 # builds a map for FASTQ files
 def build_map_fastq(file_name):
     huffman_map = {}
+    seq_pattern = []
+    separators = '@_.:-'
     file = open(file_name, 'r')
-    line_1 = file.readline()
+    line_1 = file.readline().lstrip('@').rstrip('\n')
     line_len = 0
+
+    sep_list = []
+    str_list = []
+    if line_1:
+        if ' length' in line_1:
+            line_1 = line_1[:line.index('length')]
+        sep_list = re.findall(r'[ _/\.,:;#~-]+', line_1)
+        str_list = re.split(r'[ _/\.,:;#~-]+', line_1)
     while line_1:
-        if line_1[0] != '@':
-            raise FileFormatIncorrectException('The sequence identifier line does not match the FASTQ format')
+        str_list_temp = re.split(r'[ _/\.,:;#~-]+', line_1)
+        for i in range(len(str_list)):
+            if str_list[i] != str_list_temp[i]:
+                str_list[i] = None
+        # raw sequence
+        line_2 = file.readline().rstrip('\n')
+        # line 3 - TBD
+        file.readline()
+        # quality scores
+        line_4 = file.readline().rstrip('\n')
+        # more of an length error check
+        if len(line_2) == len(line_4):
+            if line_len == 0:
+                line_len = len(line_2)
+            # count the indices in the line (NOTE: does NOT count '\n')
+            for i in range(len(line_2)):
+                # store the key as sequence-score
+                key = '' + line_2[i] + line_4[i]
+                if key in huffman_map:
+                    huffman_map[key] += 1
+                else:
+                    huffman_map[key] = 1
         else:
-            # raw sequence
-            line_2 = file.readline().rstrip('\n')
-            # line 3 - TBD
-            file.readline()
-            # quality scores
-            line_4 = file.readline().rstrip('\n')
-            # more of an length error check
-            if len(line_2) == len(line_4):
-                if line_len == 0:
-                    line_len = len(line_2)
-                # count the indices in the line (NOTE: does NOT count '\n')
-                for i in range(len(line_2)):
-                    # store the key as sequence-score
-                    key = '' + line_2[i] + line_4[i]
-                    if key in huffman_map:
-                        huffman_map[key] += 1
-                    else:
-                        huffman_map[key] = 1
-            else:
-                raise FileFormatIncorrectException('The length of the raw sequence does not match the length of the quality score')
-            file.flush()
-            line_1 = file.readline()
+            raise FileFormatIncorrectException('The length of the raw sequence does not match the length of the quality score')
+        file.flush()
+        line_1 = file.readline().lstrip('@').rstrip('\n')
     file.close()
-    return huffman_map, line_len
+    str_opt, list_count, str_count, list_pos, str_pos = optimize_seq(sep_list, str_list)
+    return huffman_map, line_len, str_opt, list_count, str_count, list_pos, str_pos
+
+def optimize_seq(sep_list, str_list):
+    sep_q = deque(sep_list)
+    str_q = deque(str_list)
+    list_count = 0
+    str_count = 0
+    list_pos = []
+    str_pos = []
+    str_opt = ''
+    while len(str_q) > 0:        
+        str_pop = str_q.popleft()
+        if str_pop is None:
+            list_pos.append(list_count)
+            str_pos.append(str_count)
+        else:
+            str_opt += str_pop
+            str_count += len(str_pop)
+        list_count += 1
+        if len(sep_q) > 0:
+            sep_pop = sep_q.popleft()
+            str_opt += sep_pop
+            str_count += 1
+    return str_opt, list_count, str_count, tuple(list_pos), tuple(str_pos)
 
 
 # converts the Huffman map to Huffman nodes
@@ -85,7 +122,7 @@ def generate_huffman_code(node, code, huffman_code_map):
 # writes the g-sqz'd file
 def gsqz_encode_fastq(file_name):
     # preparation
-    huffman_map, line_len = build_map(file_name)
+    huffman_map, line_len, str_opt, list_count, str_count, list_pos, str_pos = build_map(file_name)
     huffman_node = build_huffman_tree(huffman_map)
     huffman_encode_map = generate_huffman_code_map(huffman_node)
     huffman_decode_map = {val:key for key, val in huffman_encode_map.items()}
@@ -110,9 +147,15 @@ def gsqz_encode_fastq(file_name):
     raw_code = ''
     byte_index = 0
     bit_index = 0
-    line_1 = read_file.readline()
+    line_1 = read_file.readline().lstrip('@').rstrip('\n')
     while line_1:
-        seek_map[line_1.strip('@\n')] = (byte_index, bit_index)
+        if ' length' in line_1:
+            line_1 = line_1[:line.index('length')]
+        str_list_temp = re.split(r'[ _/\.,:;#~-]+', line_1)
+        line_1_keys = []
+        for i in list_pos:
+            line_1_keys.append(str_list_temp[i])
+        seek_map[tuple(line_1_keys)] = (byte_index, bit_index)
         line_2 = read_file.readline().rstrip('\n')
         read_file.readline()
         line_4 = read_file.readline().rstrip('\n')            
@@ -130,7 +173,7 @@ def gsqz_encode_fastq(file_name):
             append_bytes(temp_name, raw_code[:-rem])
             raw_code = raw_code[-rem:]
         read_file.flush()
-        line_1 = read_file.readline()
+        line_1 = read_file.readline().lstrip('@').rstrip('\n')
     read_file.close()
     if len(raw_code) > 0:
         raw_code += '0'*(8-len(raw_code))
@@ -154,7 +197,7 @@ def gsqz_encode_fastq(file_name):
     
     # confirmation and output
     print('Successfully encoded: ' + file_name)
-    return huffman_map, huffman_node, huffman_encode_map, line_len, seek_map
+    return huffman_map, huffman_node, huffman_encode_map, line_len, seek_map, str_opt, list_count, str_count, list_pos, str_pos
 
 # appends bytes to output file
 def append_bytes(file_name, bin_str):    
@@ -287,14 +330,14 @@ class FileFormatIncorrectException(Exception):
 # autotest data
 def main():
     # 78 elements
-    a1, a2, a3, a4, a5 = gsqz_encode_fastq('./test/test0.0.fastq')
+    a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 = gsqz_encode_fastq('./test/test4.0.fastq')
 
     # 12159 elements
-    b1, b2, b3, b4, b5 = gsqz_encode_fastq('./test/test0.1.fastq')
+    b1, b2, b3, b4, b5, b6, b7, b8, b9, b10 = gsqz_encode_fastq('./test/test4.1.fastq')
 
     # decode
-    c1, c2, c3, c4, c5 = gsqz_decode_fastq('./test/test0.0.fastq.gsqz')
-    d1, d2, d3, d4, d5 = gsqz_decode_fastq('./test/test0.1.fastq.gsqz')
+    #c1, c2, c3, c4, c5 = gsqz_decode_fastq('./test/test0.0.fastq.gsqz')
+    #d1, d2, d3, d4, d5 = gsqz_decode_fastq('./test/test0.1.fastq.gsqz')
 
 if __name__ == '__main__':
     main()
