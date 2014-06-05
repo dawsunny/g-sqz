@@ -5,6 +5,7 @@ from collections import deque
 from heapq import *
 from _pickle import *
 from HuffmanNode import *
+import gc
 import os
 import re
 
@@ -27,7 +28,7 @@ def build_map_fastq(file_name):
     str_list = []
     if line_1:
         if ' length' in line_1:
-            line_1 = line_1[:line.index('length')]
+            line_1 = line_1[:line_1.index(' length')]
         sep_list = re.findall(r'[ _/\.,:;#~-]+', line_1)
         str_list = re.split(r'[ _/\.,:;#~-]+', line_1)
     while line_1:
@@ -82,6 +83,7 @@ def optimize_seq(sep_list, str_list):
             sep_pop = sep_q.popleft()
             str_opt += sep_pop
             str_count += 1
+    #print(sep_list, str_list, str_opt)
     return str_opt, list_count, str_count, tuple(list_pos), tuple(str_pos)
 
 
@@ -126,6 +128,7 @@ def gsqz_encode_fastq(file_name):
     huffman_node = build_huffman_tree(huffman_map)
     huffman_encode_map = generate_huffman_code_map(huffman_node)
     huffman_decode_map = {val:key for key, val in huffman_encode_map.items()}
+    huffman_decode_map[-1] = (str_opt, tuple(str_pos), tuple(list_pos))
     seek_map = {}
     
     # file io
@@ -133,6 +136,13 @@ def gsqz_encode_fastq(file_name):
     gsqz_name = file_name+'.gsqz'
     temp_name = file_name+'.tmp'
     write_file = open(gsqz_name, 'wb')
+    
+    line_1 = read_file.readline().lstrip('@').rstrip('\n')
+    line_end = len(line_1)
+    if line_1:
+        if ' length' in line_1:
+            line_len += 128
+            line_end = line_1.index(' length')
     
     # write line length
     write_file.write(line_len.to_bytes(1, byteorder='big'))
@@ -147,14 +157,14 @@ def gsqz_encode_fastq(file_name):
     raw_code = ''
     byte_index = 0
     bit_index = 0
-    line_1 = read_file.readline().lstrip('@').rstrip('\n')
+    
     while line_1:
         if ' length' in line_1:
-            line_1 = line_1[:line.index('length')]
+            line_1 = line_1[:line_end]
         str_list_temp = re.split(r'[ _/\.,:;#~-]+', line_1)
         line_1_keys = []
         for i in list_pos:
-            line_1_keys.append(str_list_temp[i])
+            line_1_keys.append(int(str_list_temp[i]))
         seek_map[tuple(line_1_keys)] = (byte_index, bit_index)
         line_2 = read_file.readline().rstrip('\n')
         read_file.readline()
@@ -184,7 +194,6 @@ def gsqz_encode_fastq(file_name):
     pickled_seek = dumps(seek_map)
     write_file.write(len(pickled_seek).to_bytes(3, byteorder='big'))
     write_file.write(pickled_seek)
-    print('Seek size: {:.2f}KB'.format(len(pickled_seek)/1024))
     
     # append temp file bytes, delete temp file
     temp_file = open(temp_name, 'rb')
@@ -196,7 +205,15 @@ def gsqz_encode_fastq(file_name):
     os.remove(temp_name)
     
     # confirmation and output
-    print('Successfully encoded: ' + file_name)
+    fastq_size = os.path.getsize(file_name)/1024
+    gsqz_size = os.path.getsize(gsqz_name)/1024
+    print(file_name)
+    print('Seek dict size: {:.2f}KB'.format(len(pickled_seek)/1024))
+    print('Decode dict size: {:.2f}KB'.format(len(pickled_decode)/1024))
+    print('Uncompressed Size: {:.2f}KB'.format(fastq_size))
+    print('Compressed Size: {:.2f}KB'.format(gsqz_size))
+    print('Compression Ratio: {:.2f}'.format(gsqz_size/fastq_size))
+    print('---')
     return huffman_map, huffman_node, huffman_encode_map, line_len, seek_map, str_opt, list_count, str_count, list_pos, str_pos
 
 # appends bytes to output file
@@ -327,17 +344,20 @@ class FileFormatIncorrectException(Exception):
         self.error = error
         Exception.__init__(self, 'File Format Incorrect Exception: %s' % error)
 
+
 # autotest data
 def main():
-    # 78 elements
-    a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 = gsqz_encode_fastq('./test/test4.0.fastq')
+    rel = 5
+    ver = 2
 
-    # 12159 elements
-    b1, b2, b3, b4, b5, b6, b7, b8, b9, b10 = gsqz_encode_fastq('./test/test4.1.fastq')
+    for i in range(rel):
+        for j in range(ver):
+            file_name = './test/test{:d}.{:d}.fastq'.format(i, j)
+            gsqz_encode_fastq(file_name)
+            gc.collect()
+            #gsqz_decode_fastq(file_name)
+            gc.collect()
 
-    # decode
-    #c1, c2, c3, c4, c5 = gsqz_decode_fastq('./test/test0.0.fastq.gsqz')
-    #d1, d2, d3, d4, d5 = gsqz_decode_fastq('./test/test0.1.fastq.gsqz')
 
 if __name__ == '__main__':
     main()
