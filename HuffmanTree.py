@@ -26,16 +26,22 @@ def build_map_fastq(file_name):
 
     sep_list = []
     str_list = []
+    list_pos = None
     if line_1:
         if ' length' in line_1:
             line_1 = line_1[:line_1.index(' length')]
         sep_list = re.findall(r'[ _/\.,:;#~-]+', line_1)
         str_list = re.split(r'[ _/\.,:;#~-]+', line_1)
+        list_pos = [None]*len(str_list)
     while line_1:
         str_list_temp = re.split(r'[ _/\.,:;#~-]+', line_1)
         for i in range(len(str_list)):
-            if str_list[i] != str_list_temp[i]:
-                str_list[i] = None
+            str_temp = str_list[i]
+            if str_temp != '' and str_temp != str_list_temp[i]:
+                max_pos = str_max_pos(str_temp, str_list_temp[i])
+                if max_pos < len(str_temp):
+                    str_list[i] = str_list[i][:max_pos]
+                    list_pos[i] = max_pos
         # raw sequence
         line_2 = file.readline().rstrip('\n')
         # line 3 - TBD
@@ -59,32 +65,45 @@ def build_map_fastq(file_name):
         file.flush()
         line_1 = file.readline().lstrip('@').rstrip('\n')
     file.close()
-    str_opt, list_count, str_count, list_pos, str_pos = optimize_seq(sep_list, str_list)
-    return huffman_map, line_len, str_opt, list_count, str_count, list_pos, str_pos
+    str_opt, str_pos = optimize_seq(sep_list, str_list, list_pos)    
+##    print(sep_list, str_list, str_opt)
+##    print(list_pos, str_pos)
+    return huffman_map, line_len, str_opt, str_pos, list_pos
 
-def optimize_seq(sep_list, str_list):
-    sep_q = deque(sep_list)
-    str_q = deque(str_list)
-    list_count = 0
+
+# returns the maximum length of the substring that matches
+def str_max_pos(string_1, string_2):
+    start_val = min(len(string_1), len(string_2))
+    max_pos = 0
+    for i in range(start_val, 0, -1):
+        if string_1[:i] == string_2[:i]:
+            max_pos = i
+            break
+    return max_pos
+
+
+# returns the string made of the common characters in the SEQ line
+def optimize_seq(sep_list, str_list, list_pos):
     str_count = 0
-    list_pos = []
     str_pos = []
     str_opt = ''
-    while len(str_q) > 0:        
-        str_pop = str_q.popleft()
-        if str_pop is None:
-            list_pos.append(list_count)
+    sep_len = len(sep_list)
+    for i in range(len(list_pos)):
+        pos_temp = list_pos[i]
+        str_temp = str_list[i]
+        if pos_temp is None:
+            str_opt += str_temp
+            str_count += len(str_list[i])
+        elif pos_temp == 0:
             str_pos.append(str_count)
         else:
-            str_opt += str_pop
-            str_count += len(str_pop)
-        list_count += 1
-        if len(sep_q) > 0:
-            sep_pop = sep_q.popleft()
-            str_opt += sep_pop
+            str_opt += str_temp
+            str_count += len(str_list[i])
+            str_pos.append(str_count)
+        if i < sep_len:
+            str_opt += sep_list[i]
             str_count += 1
-    #print(sep_list, str_list, str_opt)
-    return str_opt, list_count, str_count, tuple(list_pos), tuple(str_pos)
+    return str_opt, str_pos
 
 
 # converts the Huffman map to Huffman nodes
@@ -124,7 +143,7 @@ def generate_huffman_code(node, code, huffman_code_map):
 # writes the g-sqz'd file
 def gsqz_encode_fastq(file_name):
     # preparation
-    huffman_map, line_len, str_opt, list_count, str_count, list_pos, str_pos = build_map(file_name)
+    huffman_map, line_len, str_opt, str_pos, list_pos = build_map(file_name)
     huffman_node = build_huffman_tree(huffman_map)
     huffman_encode_map = generate_huffman_code_map(huffman_node)
     huffman_decode_map = {val:key for key, val in huffman_encode_map.items()}
@@ -163,8 +182,12 @@ def gsqz_encode_fastq(file_name):
             line_1 = line_1[:line_end]
         str_list_temp = re.split(r'[ _/\.,:;#~-]+', line_1)
         line_1_keys = []
-        for i in list_pos:
-            line_1_keys.append(int(str_list_temp[i]))
+        for i in range(len(list_pos)):
+            pos_temp = list_pos[i]
+            if pos_temp == 0:
+                line_1_keys.append(int(str_list_temp[i]))
+            elif pos_temp is not None:
+                line_1_keys.append(int(str_list_temp[i][pos_temp:]))
         seek_map[tuple(line_1_keys)] = (byte_index, bit_index)
         line_2 = read_file.readline().rstrip('\n')
         read_file.readline()
@@ -212,9 +235,9 @@ def gsqz_encode_fastq(file_name):
     print('Decode dict size: {:.2f}KB'.format(len(pickled_decode)/1024))
     print('Uncompressed Size: {:.2f}KB'.format(fastq_size))
     print('Compressed Size: {:.2f}KB'.format(gsqz_size))
-    print('Compression Ratio: {:.2f}'.format(gsqz_size/fastq_size))
+    print('Compression Savings: {:.2f}'.format(1-(gsqz_size/fastq_size)))
     print('---')
-    return huffman_map, huffman_node, huffman_encode_map, line_len, seek_map, str_opt, list_count, str_count, list_pos, str_pos
+    return huffman_map, huffman_node, huffman_encode_map, line_len, seek_map, str_opt, list_pos, str_pos
 
 # appends bytes to output file
 def append_bytes(file_name, bin_str):    
@@ -348,9 +371,9 @@ class FileFormatIncorrectException(Exception):
 # autotest data
 def main():
     rel = 5
-    ver = 2
+    ver = 3
 
-    for i in range(rel):
+    for i in range(1, rel):
         for j in range(ver):
             file_name = './test/test{:d}.{:d}.fastq'.format(i, j)
             gsqz_encode_fastq(file_name)
@@ -358,6 +381,7 @@ def main():
             #gsqz_decode_fastq(file_name)
             gc.collect()
 
+    #gsqz_encode_fastq('./test/test3.2.fastq')
 
 if __name__ == '__main__':
     main()

@@ -1,84 +1,98 @@
 ./test/test0.0.fastq
 Seek dict size: 0.04KB
-Decode dict size: 0.18KB
+Decode dict size: 0.20KB
 Uncompressed Size: 0.36KB
-Compressed Size: 0.25KB
-Compression Ratio: 0.70
+Compressed Size: 0.27KB
+Compression Savings: 0.27
 ---
 ./test/test0.1.fastq
 Seek dict size: 4.59KB
-Decode dict size: 3.10KB
+Decode dict size: 3.12KB
 Uncompressed Size: 30.86KB
-Compressed Size: 13.03KB
-Compression Ratio: 0.42
+Compressed Size: 13.04KB
+Compression Savings: 0.58
 ---
 ./test/test1.0.fastq
 Seek dict size: 17.11KB
-Decode dict size: 3.16KB
+Decode dict size: 3.18KB
 Uncompressed Size: 103.22KB
-Compressed Size: 38.22KB
-Compression Ratio: 0.37
+Compressed Size: 38.24KB
+Compression Savings: 0.63
 ---
 ./test/test1.1.fastq
 Seek dict size: 191.98KB
-Decode dict size: 3.19KB
+Decode dict size: 3.20KB
 Uncompressed Size: 1057.14KB
-Compressed Size: 378.76KB
-Compression Ratio: 0.36
+Compressed Size: 378.77KB
+Compression Savings: 0.64
 ---
 ./test/test1.2.fastq
 Seek dict size: 2048.92KB
-Decode dict size: 3.22KB
+Decode dict size: 3.23KB
 Uncompressed Size: 10570.22KB
-Compressed Size: 3881.61KB
-Compression Ratio: 0.37
+Compressed Size: 3881.62KB
+Compression Savings: 0.63
 ---
 ./test/test2.0.fastq
 Seek dict size: 11.12KB
 Decode dict size: 4.14KB
 Uncompressed Size: 101.88KB
-Compressed Size: 46.83KB
-Compression Ratio: 0.46
+Compressed Size: 46.84KB
+Compression Savings: 0.54
 ---
 ./test/test2.1.fastq
-Seek dict size: 145.43KB
-Decode dict size: 4.13KB
+Seek dict size: 135.51KB
+Decode dict size: 4.14KB
 Uncompressed Size: 1043.62KB
-Compressed Size: 463.48KB
-Compression Ratio: 0.44
+Compressed Size: 453.57KB
+Compression Savings: 0.57
 ---
 ./test/test2.2.fastq
 Seek dict size: 1604.76KB
 Decode dict size: 4.14KB
 Uncompressed Size: 10438.18KB
-Compressed Size: 6525.58KB
-Compression Ratio: 0.63
+Compressed Size: 4767.31KB
+Compression Savings: 0.54
 ---
 ./test/test3.0.fastq
-Seek dict size: 14.62KB
-Decode dict size: 3.18KB
+Seek dict size: 14.00KB
+Decode dict size: 3.20KB
 Uncompressed Size: 102.36KB
-Compressed Size: 37.10KB
-Compression Ratio: 0.36
+Compressed Size: 36.49KB
+Compression Savings: 0.64
 ---
 ./test/test3.1.fastq
 Seek dict size: 166.55KB
-Decode dict size: 3.18KB
+Decode dict size: 3.19KB
 Uncompressed Size: 1049.30KB
-Compressed Size: 366.28KB
-Compression Ratio: 0.35
+Compressed Size: 366.29KB
+Compression Savings: 0.65
+---
+./test/test3.2.fastq
+Seek dict size: 1919.98KB
+Decode dict size: 3.25KB
+Uncompressed Size: 10493.47KB
+Compressed Size: 3884.88KB
+Compression Savings: 0.63
 ---
 ./test/test4.0.fastq
 Seek dict size: 11.63KB
-Decode dict size: 3.14KB
+Decode dict size: 3.15KB
 Uncompressed Size: 101.84KB
 Compressed Size: 43.00KB
-Compression Ratio: 0.42
+Compression Savings: 0.58
 ---
 ./test/test4.1.fastq
 Seek dict size: 132.99KB
-Decode dict size: 3.15KB
+Decode dict size: 3.16KB
 Uncompressed Size: 1044.08KB
-Compressed Size: 423.65KB
-Compression Ratio: 0.41
+Compressed Size: 423.66KB
+Compression Savings: 0.59
+---
+./test/test4.2.fastq
+Seek dict size: 1371.85KB
+Decode dict size: 3.16KB
+Uncompressed Size: 10440.28KB
+Compressed Size: 4230.25KB
+Compression Savings: 0.59
 ---
